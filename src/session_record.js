@@ -170,8 +170,8 @@ const migrations = [{
         } else {
             for (const key in sessions) {
                 if (sessions[key].indexInfo.closed === -1) {
-                                  data.registrationId, 'for open session version',
-                                  data.version;
+                    data.registrationId, 'for open session version',
+                    data.version);
                 }
             }
         }
@@ -237,6 +237,7 @@ class SessionRecord {
         assertBuffer(key);
         const session = this.sessions[key.toString('base64')];
         if (session && session.indexInfo.baseKeyType === BaseKeyType.OURS) {
+            throw new Error("Tried to lookup a session using our basekey");
         }
         return session;
     }

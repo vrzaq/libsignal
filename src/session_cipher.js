@@ -1,5 +1,3 @@
-// vim: ts=4:sw=4:expandtab
-
 const ChainType = require('./chain_type');
 const ProtocolAddress = require('./protocol_address');
 const SessionBuilder = require('./session_builder');
@@ -105,7 +103,7 @@ class SessionCipher {
             await this.storeRecord(record);
             let type, body;
             if (session.pendingPreKey) {
-                type = 3;  // prekey bundle
+                type = 3;
                 const preKeyMsg = protobufs.PreKeyWhisperMessage.create({
                     identityKey: ourIdentityKey.pubKey,
                     registrationId: await this.storage.getOurRegistrationId(),
@@ -123,7 +121,7 @@ class SessionCipher {
                     )
                 ]);
             } else {
-                type = 1;  // normal
+                type = 1;
                 body = result;
             }
             return {
@@ -135,8 +133,6 @@ class SessionCipher {
     }
 
     async decryptWithSessions(data, sessions) {
-        // Iterate through the sessions, attempting to decrypt using each one.
-        // Stop and return the result if we get a valid result.
         if (!sessions.length) {
             throw new errors.SessionError("No sessions available");
         }   
@@ -172,11 +168,6 @@ class SessionCipher {
                 throw new errors.UntrustedIdentityKeyError(this.addr.id, remoteIdentityKey);
             }   
             if (record.isClosed(result.session)) {
-                // It's possible for this to happen when processing a backlog of messages.
-                // The message was, hopefully, just sent back in a time when this session
-                // was the most current.  Simply make a note of it and continue.  If our
-                // actual open session is for reason invalid, that must be handled via
-                // a full SessionError response.
             }
             await this.storeRecord(record);
             return result.plaintext;
@@ -186,7 +177,7 @@ class SessionCipher {
     async decryptPreKeyWhisperMessage(data) {
         assertBuffer(data);
         const versions = this._decodeTupleByte(data[0]);
-        if (versions[1] > 3 || versions[0] < 3) {  // min version > 3 or max version < 3
+        if (versions[1] > 3 || versions[0] < 3) {
             throw new Error("Incompatible version number on PreKeyWhisperMessage");
         }
         return await this.queueJob(async () => {
@@ -216,7 +207,7 @@ class SessionCipher {
             throw new TypeError("session required");
         }
         const versions = this._decodeTupleByte(messageBuffer[0]);
-        if (versions[1] > 3 || versions[0] < 3) {  // min version > 3 or max version < 3
+        if (versions[1] > 3 || versions[0] < 3) {
             throw new Error("Incompatible version number on WhisperMessage");
         }
         const messageProto = messageBuffer.slice(1, -8);
@@ -228,8 +219,6 @@ class SessionCipher {
         }
         this.fillMessageKeys(chain, message.counter);
         if (!chain.messageKeys.hasOwnProperty(message.counter)) {
-            // Most likely the message was already decrypted and we are trying to process
-            // twice.  This can happen if the user restarts before the server gets an ACK.
             throw new errors.MessageCounterError('Key used already or never filled');
         }
         const messageKey = chain.messageKeys[message.counter];
@@ -242,8 +231,6 @@ class SessionCipher {
         macInput.set(ourIdentityKey.pubKey, 33);
         macInput[33 * 2] = this._encodeTupleByte(VERSION, VERSION);
         macInput.set(messageProto, (33 * 2) + 1);
-        // This is where we most likely fail if the session is not a match.
-        // Don't misinterpret this as corruption.
         crypto.verifyMAC(macInput, keys[1], messageBuffer.slice(-8), 8);
         const plaintext = crypto.decrypt(keys[0], message.ciphertext, keys[2].slice(0, 16));
         delete session.pendingPreKey;
@@ -275,10 +262,9 @@ class SessionCipher {
         let previousRatchet = session.getChain(ratchet.lastRemoteEphemeralKey);
         if (previousRatchet) {
             this.fillMessageKeys(previousRatchet, previousCounter);
-            delete previousRatchet.chainKey.key;  // Close
+            delete previousRatchet.chainKey.key;
         }
         this.calculateRatchet(session, remoteKey, false);
-        // Now swap the ephemeral key and calculate the new sending chain
         const prevCounter = session.getChain(ratchet.ephemeralKeyPair.pubKey);
         if (prevCounter) {
             ratchet.previousCounter = prevCounter.chainKey.counter;
@@ -293,7 +279,7 @@ class SessionCipher {
         let ratchet = session.currentRatchet;
         const sharedSecret = curve.calculateAgreement(remoteKey, ratchet.ephemeralKeyPair.privKey);
         const masterKey = crypto.deriveSecrets(sharedSecret, ratchet.rootKey,
-                                               Buffer.from("WhisperRatchet"), /*chunks*/ 2);
+        Buffer.from("WhisperRatchet"), 2);
         const chainKey = sending ? ratchet.ephemeralKeyPair.pubKey : remoteKey;
         session.addChain(chainKey, {
             messageKeys: {},
